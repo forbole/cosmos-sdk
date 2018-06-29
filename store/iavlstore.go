@@ -54,6 +54,11 @@ type iavlStore struct {
 	// so that nodes can know the waypoints their peers store
 	// TODO if set to non-default, signal to peers that the node is not suitable as a state sync source
 	storeEvery int64
+	// A value of 0 means keep all history.
+	numHistory int64
+
+	// transient store is wiped out at Commti
+	transient *transientStore
 }
 
 // CONTRACT: tree should be fully loaded.
@@ -62,12 +67,17 @@ func newIAVLStore(tree *iavl.VersionedTree, numRecent int64, storeEvery int64) *
 		tree:       tree,
 		numRecent:  numRecent,
 		storeEvery: storeEvery,
+		transient:  nil,
 	}
 	return st
 }
 
 // Implements Committer.
 func (st *iavlStore) Commit() CommitID {
+
+	// Clear transient store
+	// transient store uses MemDB internally, GC will handle it
+	st.transient = nil
 
 	// Save a new version.
 	hash, version, err := st.tree.SaveVersion()
@@ -141,6 +151,19 @@ func (st *iavlStore) Delete(key []byte) {
 // Implements KVStore
 func (st *iavlStore) Prefix(prefix []byte) KVStore {
 	return prefixStore{st, prefix}
+}
+
+// Implements KVStore
+func (st *iavlStore) Gas(meter GasMeter, config GasConfig) KVStore {
+	return NewGasKVStore(meter, config, st)
+}
+
+// Implements KVStore
+func (st *iavlStore) Transient() KVStore {
+	if st.transient == nil {
+		st.transient = newTransientStore()
+	}
+	return st.transient
 }
 
 // Implements KVStore.

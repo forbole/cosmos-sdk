@@ -49,7 +49,6 @@ type MultiStore interface { //nolint
 	// Convenience for fetching substores.
 	GetStore(StoreKey) Store
 	GetKVStore(StoreKey) KVStore
-	GetKVStoreWithGas(GasMeter, StoreKey) KVStore
 }
 
 // From MultiStore.CacheMultiStore()....
@@ -103,9 +102,6 @@ type KVStore interface {
 	// Delete deletes the key. Panics on nil key.
 	Delete(key []byte)
 
-	// Prefix applied keys with the argument
-	Prefix(prefix []byte) KVStore
-
 	// Iterator over a domain of keys in ascending order. End is exclusive.
 	// Start must be less than end, or the Iterator is invalid.
 	// Iterator must be closed by caller.
@@ -124,6 +120,16 @@ type KVStore interface {
 
 	// TODO Not yet implemented.
 	// GetSubKVStore(key *storeKey) KVStore
+
+	// Prefix applied keys with the argument
+	// CONTRACT: when Prefix is called on a KVStore more than once,
+	// the concatanation of the prefixes is applied
+	Prefix(prefix []byte) KVStore
+
+	// Gas consuming store
+	// CONTRACT: when Gas is called on a KVStore more than once,
+	// the most latest overwrites the meter and the config.
+	Gas(GasMeter, GasConfig) KVStore
 }
 
 // Alias iterator to db's Iterator for convenience.
@@ -212,7 +218,7 @@ const (
 	StoreTypeMulti StoreType = iota
 	StoreTypeDB
 	StoreTypeIAVL
-	StoreTypePrefix
+	StoreTypeTransient
 )
 
 //----------------------------------------
@@ -275,21 +281,6 @@ func PrefixEndBytes(prefix []byte) []byte {
 		}
 	}
 	return end
-}
-
-// Getter struct for prefixed stores
-type PrefixStoreGetter struct {
-	key    StoreKey
-	prefix []byte
-}
-
-func NewPrefixStoreGetter(key StoreKey, prefix []byte) PrefixStoreGetter {
-	return PrefixStoreGetter{key, prefix}
-}
-
-// Implements sdk.KVStoreGetter
-func (getter PrefixStoreGetter) KVStore(ctx Context) KVStore {
-	return ctx.KVStore(getter.key).Prefix(getter.prefix)
 }
 
 //----------------------------------------
