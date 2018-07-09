@@ -1,6 +1,8 @@
 package store
 
 import (
+	"io"
+
 	sdk "github.com/cosmos/cosmos-sdk/types"
 )
 
@@ -10,22 +12,26 @@ import (
 // cacheMultiStore holds many cache-wrapped stores.
 // Implements MultiStore.
 type cacheMultiStore struct {
-	db         CacheKVStore
-	stores     map[StoreKey]CacheWrap
-	keysByName map[string]StoreKey
+	db          CacheKVStore
+	stores      map[StoreKey]CacheWrap
+	keysByName  map[string]StoreKey
+	traceWriter io.Writer
 }
 
 var _ CacheMultiStore = cacheMultiStore{}
 
 func newCacheMultiStoreFromRMS(rms *rootMultiStore) cacheMultiStore {
 	cms := cacheMultiStore{
-		db:         NewCacheKVStore(dbStoreAdapter{rms.db}),
-		stores:     make(map[StoreKey]CacheWrap, len(rms.stores)),
-		keysByName: rms.keysByName,
+		db:          NewCacheKVStore(dbStoreAdapter{rms.db}),
+		stores:      make(map[StoreKey]CacheWrap, len(rms.stores)),
+		keysByName:  rms.keysByName,
+		traceWriter: rms.traceWriter,
 	}
+
 	for key, store := range rms.stores {
 		cms.stores[key] = store.CacheWrap()
 	}
+
 	return cms
 }
 
@@ -70,7 +76,13 @@ func (cms cacheMultiStore) GetStore(key StoreKey) Store {
 
 // Implements MultiStore.
 func (cms cacheMultiStore) GetKVStore(key StoreKey) KVStore {
-	return cms.stores[key].(KVStore)
+	store := cms.stores[key].(KVStore)
+
+	if cms.traceWriter != nil {
+		store = NewTraceKVStore(store, cms.traceWriter)
+	}
+
+	return store
 }
 
 // Implements MultiStore.
