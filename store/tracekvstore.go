@@ -25,8 +25,10 @@ type (
 		writer io.Writer
 	}
 
+	// operation represents an IO operation
 	operation string
 
+	// traceOperation implements a traced KVStore operation
 	traceOperation struct {
 		Timestamp int       `json:"timestamp,omitempty"`
 		Operation operation `json:"operation,omitempty"`
@@ -87,6 +89,8 @@ func (tkv *TraceKVStore) ReverseIterator(start, end []byte) sdk.Iterator {
 	return tkv.iterator(start, end, false)
 }
 
+// iterator facilitates iteration over a KVStore. It delegates the necessary
+// calls to it's parent KVStore.
 func (tkv *TraceKVStore) iterator(start, end []byte, ascending bool) sdk.Iterator {
 	if ascending {
 		return tkv.parent.Iterator(start, end)
