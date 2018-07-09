@@ -2,6 +2,7 @@ package baseapp
 
 import (
 	"fmt"
+	"io"
 	"runtime/debug"
 	"strings"
 
@@ -37,7 +38,7 @@ const (
 	runTxModeDeliver runTxMode = iota
 )
 
-// The ABCI application
+// BaseApp reflects the ABCI application implementation.
 type BaseApp struct {
 	// initialized on creation
 	Logger     log.Logger
@@ -71,7 +72,12 @@ type BaseApp struct {
 
 var _ abci.Application = (*BaseApp)(nil)
 
-// Create and name new BaseApp
+// NewBaseApp returns a reference to an initialized BaseApp.
+//
+// TODO: Determine how to use a flexible and robust configuration paradigm that
+// allows for sensible defaults while being highly configurable
+// (e.g. functional options).
+//
 // NOTE: The db is used to store the version number for now.
 func NewBaseApp(name string, cdc *wire.Codec, logger log.Logger, db dbm.DB) *BaseApp {
 	app := &BaseApp{
@@ -84,7 +90,9 @@ func NewBaseApp(name string, cdc *wire.Codec, logger log.Logger, db dbm.DB) *Bas
 		codespacer: sdk.NewCodespacer(),
 		txDecoder:  defaultTxDecoder(cdc),
 	}
-	// Register the undefined & root codespaces, which should not be used by any modules
+
+	// Register the undefined & root codespaces, which should not be used by
+	// any modules.
 	app.codespacer.RegisterOrPanic(sdk.CodespaceRoot)
 	return app
 }
@@ -92,6 +100,12 @@ func NewBaseApp(name string, cdc *wire.Codec, logger log.Logger, db dbm.DB) *Bas
 // BaseApp Name
 func (app *BaseApp) Name() string {
 	return app.name
+}
+
+// SetCommitMultiStoreTracer sets the store tracer on the BaseApp's underlying
+// CommitMultiStore.
+func (app *BaseApp) SetCommitMultiStoreTracer(w io.Writer) {
+	app.cms.SetTracer(w)
 }
 
 // Register the next available codespace through the baseapp's codespacer, starting from a default
