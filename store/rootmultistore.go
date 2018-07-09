@@ -2,6 +2,7 @@ package store
 
 import (
 	"fmt"
+	"io"
 	"strings"
 
 	"golang.org/x/crypto/ripemd160"
@@ -18,16 +19,16 @@ const (
 	commitInfoKeyFmt = "s/%d" // s/<version>
 )
 
-// rootMultiStore is composed of many CommitStores.
-// Name contrasts with cacheMultiStore which is for cache-wrapping
-// other MultiStores.
-// Implements MultiStore.
+// rootMultiStore is composed of many CommitStores. Name contrasts with
+// cacheMultiStore which is for cache-wrapping other MultiStores. It implements
+// the CommitMultiStore interface.
 type rootMultiStore struct {
 	db           dbm.DB
 	lastCommitID CommitID
 	storesParams map[StoreKey]storeParams
 	stores       map[StoreKey]CommitStore
 	keysByName   map[string]StoreKey
+	traceWriter  io.Writer
 }
 
 var _ CommitMultiStore = (*rootMultiStore)(nil)
@@ -128,6 +129,14 @@ func (rs *rootMultiStore) LoadVersion(ver int64) error {
 	rs.lastCommitID = cInfo.CommitID()
 	rs.stores = newStores
 	return nil
+}
+
+// SetTracer implements a CommitMultiStore interface. It sets the underlying
+// tracer as an io.Writer.
+//
+// TODO: Should we use a buffered writer and implement Commit on TraceKVStore?
+func (rs *rootMultiStore) SetTracer(w io.Writer) {
+	rs.traceWriter = w
 }
 
 //----------------------------------------
