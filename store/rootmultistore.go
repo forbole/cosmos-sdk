@@ -187,9 +187,17 @@ func (rs *rootMultiStore) GetStore(key StoreKey) Store {
 	return rs.stores[key]
 }
 
-// Implements MultiStore.
+// GetKVStore implements the MultiStore interface. If tracing is enabled on the
+// rootMultiStore, a wrapped TraceKVStore will be returned with the given
+// tracer, otherwise, the original KVStore will be returned.
 func (rs *rootMultiStore) GetKVStore(key StoreKey) KVStore {
-	return rs.stores[key].(KVStore)
+	store := rs.stores[key].(KVStore)
+
+	if rs.traceWriter != nil {
+		store = NewTraceKVStore(store, rs.traceWriter)
+	}
+
+	return store
 }
 
 // Implements MultiStore.
