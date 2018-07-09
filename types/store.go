@@ -2,6 +2,7 @@ package types
 
 import (
 	"fmt"
+	"io"
 
 	abci "github.com/tendermint/tendermint/abci/types"
 	cmn "github.com/tendermint/tendermint/libs/common"
@@ -82,6 +83,10 @@ type CommitMultiStore interface {
 	// the next commit after loading must be idempotent (return the
 	// same commit id).  Otherwise the behavior is undefined.
 	LoadVersion(ver int64) error
+
+	// SetTracer sets the tracer for the multi-store that the underlying
+	// stores.
+	SetTracer(w io.Writer)
 }
 
 //---------subsp-------------------------------
