@@ -49,8 +49,8 @@ type BaseApp struct {
 	codespacer *sdk.Codespacer      // handle module codespacing
 
 	// must be set
-	txDecoder   sdk.TxDecoder   // unmarshal []byte into sdk.Tx
-	anteHandler sdk.AnteHandler // ante handler for fee and auth
+	txDecoder    sdk.TxDecoder     // unmarshal []byte into sdk.Tx
+	anteHandlers []sdk.AnteHandler // ante handler for fee and auth
 
 	// may be nil
 	initChainer      sdk.InitChainer  // initialize state with validators and state blob
@@ -150,8 +150,12 @@ func (app *BaseApp) SetBeginBlocker(beginBlocker sdk.BeginBlocker) {
 func (app *BaseApp) SetEndBlocker(endBlocker sdk.EndBlocker) {
 	app.endBlocker = endBlocker
 }
-func (app *BaseApp) SetAnteHandler(ah sdk.AnteHandler) {
-	app.anteHandler = ah
+
+// func (app *BaseApp) SetAnteHandler(ah sdk.AnteHandler) {
+// 	app.anteHandler = ah
+// }
+func (app *BaseApp) SetAnteHandlers(ahs ...sdk.AnteHandler) {
+	app.anteHandlers = ahs
 }
 func (app *BaseApp) SetAddrPeerFilter(pf sdk.PeerFilter) {
 	app.addrPeerFilter = pf
@@ -512,33 +516,59 @@ func (app *BaseApp) runTx(mode runTxMode, txBytes []byte, tx sdk.Tx) (result sdk
 	}
 
 	// Run the ante handler.
-	if app.anteHandler != nil {
-		newCtx, result, abort := app.anteHandler(ctx, tx)
-		if abort {
-			return result
-		}
-		if !newCtx.IsZero() {
-			ctx = newCtx
-		}
-	}
+	// if app.anteHandlers != nil {
+	// 	newCtx, result, abort := sdk.anteHandler(ctx, tx)
+	// 	if abort {
+	// 		return result
+	// 	}
+	// 	if !newCtx.IsZero() {
+	// 		ctx = newCtx
+	// 	}
+	// }
 
-	// Get the correct cache
-	var msCache sdk.CacheMultiStore
-	if mode == runTxModeCheck || mode == runTxModeSimulate {
-		// CacheWrap app.checkState.ms in case it fails.
-		msCache = app.checkState.CacheMultiStore()
-		ctx = ctx.WithMultiStore(msCache)
-	} else {
-		// CacheWrap app.deliverState.ms in case it fails.
-		msCache = app.deliverState.CacheMultiStore()
-		ctx = ctx.WithMultiStore(msCache)
-	}
+	// // Get the correct cache
+	// var msCache sdk.CacheMultiStore
+	// if mode == runTxModeCheck || mode == runTxModeSimulate {
+	// 	// CacheWrap app.checkState.ms in case it fails.
+	// 	msCache = app.checkState.CacheMultiStore()
+	// 	ctx = ctx.WithMultiStore(msCache)
+	// } else {
+	// 	// CacheWrap app.deliverState.ms in case it fails.
+	// 	msCache = app.deliverState.CacheMultiStore()
+	// 	ctx = ctx.WithMultiStore(msCache)
+	// }
 
 	finalResult := sdk.Result{}
 	var logs []string
+	var anteHandler sdk.AnteHandler
 	for i, msg := range msgs {
 		// Match route.
 		msgType := msg.Type()
+		if app.anteHandlers != nil {
+			if msgType == "contrib" {
+				anteHandler = app.anteHandlers[1]
+			} else {
+				anteHandler = app.anteHandlers[0]
+			}
+			newCtx, result, abort := anteHandler(ctx, tx)
+			if abort {
+				return result
+			}
+			if !newCtx.IsZero() {
+				ctx = newCtx
+			}
+		}
+		var msCache sdk.CacheMultiStore
+		if mode == runTxModeCheck || mode == runTxModeSimulate {
+			// CacheWrap app.checkState.ms in case it fails.
+			msCache = app.checkState.CacheMultiStore()
+			ctx = ctx.WithMultiStore(msCache)
+		} else {
+			// CacheWrap app.deliverState.ms in case it fails.
+			msCache = app.deliverState.CacheMultiStore()
+			ctx = ctx.WithMultiStore(msCache)
+		}
+
 		handler := app.router.Route(msgType)
 		if handler == nil {
 			return sdk.ErrUnknownRequest("Unrecognized Msg type: " + msgType).Result()
@@ -570,15 +600,14 @@ func (app *BaseApp) runTx(mode runTxMode, txBytes []byte, tx sdk.Tx) (result sdk
 			}
 			return result
 		}
-	}
+		// If not a simulated run and result was successful, write to app.checkState.ms or app.deliverState.ms
+		// Only update state if all messages pass.
+		if mode != runTxModeSimulate && result.IsOK() {
+			msCache.Write()
+		}
 
-	// If not a simulated run and result was successful, write to app.checkState.ms or app.deliverState.ms
-	// Only update state if all messages pass.
-	if mode != runTxModeSimulate && result.IsOK() {
-		msCache.Write()
+		finalResult.Log = strings.Join(logs, "\n")
 	}
-
-	finalResult.Log = strings.Join(logs, "\n")
 
 	return finalResult
 }
