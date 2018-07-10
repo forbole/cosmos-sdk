@@ -542,7 +542,7 @@ func (app *BaseApp) runTx(mode runTxMode, txBytes []byte, tx sdk.Tx) (result sdk
 	var logs []string
 	var anteHandler sdk.AnteHandler
 	for i, msg := range msgs {
-		// Match route.
+		// Run the ante handlers and Match route.
 		msgType := msg.Type()
 		if app.anteHandlers != nil {
 			if msgType == "contrib" {
@@ -558,6 +558,7 @@ func (app *BaseApp) runTx(mode runTxMode, txBytes []byte, tx sdk.Tx) (result sdk
 				ctx = newCtx
 			}
 		}
+		// Get the correct cache
 		var msCache sdk.CacheMultiStore
 		if mode == runTxModeCheck || mode == runTxModeSimulate {
 			// CacheWrap app.checkState.ms in case it fails.
