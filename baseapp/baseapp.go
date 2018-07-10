@@ -155,8 +155,11 @@ func (app *BaseApp) SetBeginBlocker(beginBlocker sdk.BeginBlocker) {
 func (app *BaseApp) SetEndBlocker(endBlocker sdk.EndBlocker) {
 	app.endBlocker = endBlocker
 }
-func (app *BaseApp) SetAnteHandler(ah sdk.AnteHandler) {
+/*func (app *BaseApp) SetAnteHandler(ah sdk.AnteHandler) {
 	app.anteHandler = ah
+}*/
+func (app *BaseApp) SetAnteHandlers(ahs ...sdk.AnteHandler) {
+	app.anteHandlers = ahs
 }
 func (app *BaseApp) SetAddrPeerFilter(pf sdk.PeerFilter) {
 	app.addrPeerFilter = pf
