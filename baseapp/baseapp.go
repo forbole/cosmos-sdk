@@ -155,10 +155,6 @@ func (app *BaseApp) SetBeginBlocker(beginBlocker sdk.BeginBlocker) {
 func (app *BaseApp) SetEndBlocker(endBlocker sdk.EndBlocker) {
 	app.endBlocker = endBlocker
 }
-
-// func (app *BaseApp) SetAnteHandler(ah sdk.AnteHandler) {
-// 	app.anteHandler = ah
-// }
 func (app *BaseApp) SetAnteHandlers(ahs ...sdk.AnteHandler) {
 	app.anteHandlers = ahs
 }
@@ -501,7 +497,7 @@ func (app *BaseApp) getContextForAnte(mode runTxMode, txBytes []byte) (ctx sdk.C
 }
 
 // Iterates through msgs and executes them
-func (app *BaseApp) runMsgs(ctx sdk.Context, msgs []sdk.Msg) (result sdk.Result) {
+func (app *BaseApp) runMsgs(ctx sdk.Context, msgs []sdk.Msg, tx sdk.Tx) (result sdk.Result) {
 	var anteHandler sdk.AnteHandler
 	// accumulate results
 	logs := make([]string, 0, len(msgs))
@@ -524,7 +520,6 @@ func (app *BaseApp) runMsgs(ctx sdk.Context, msgs []sdk.Msg) (result sdk.Result)
 			if !newCtx.IsZero() {
 				ctx = newCtx
 			}
-			gasWanted = result.GasWanted
 		}
 		// Match route.
 		handler := app.router.Route(msgType)
@@ -606,14 +601,25 @@ func (app *BaseApp) runTx(mode runTxMode, txBytes []byte, tx sdk.Tx) (result sdk
 	if err != nil {
 		return err.Result()
 	}
+	gasWanted = result.GasWanted
 
-	var msCache sdk.CacheMultiStore
+	// // Run the ante handler.
+	// if app.anteHandlers != nil {
+	// 	newCtx, anteResult, abort := app.anteHandler(ctx, tx)
+	// 	if abort {
+	// 		return anteResult
+	// 	}
+	// 	if !newCtx.IsZero() {
+	// 		ctx = newCtx
+	// 	}
+	// 	gasWanted = result.GasWanted
+	// }
+
 	// CacheWrap the state in case it fails.
 	msCache := getState(app, mode).CacheMultiStore()
 	ctx = ctx.WithMultiStore(msCache)
 
-	// Run the ante handler and choose the right route in runMsgs()
-	result = app.runMsgs(ctx, msgs)
+	result = app.runMsgs(ctx, msgs, tx)
 	result.GasWanted = gasWanted
 
 	// Only update state if all messages pass and we're not in a simulation.
