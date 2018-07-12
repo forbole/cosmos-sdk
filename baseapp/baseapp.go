@@ -497,31 +497,15 @@ func (app *BaseApp) getContextForAnte(mode runTxMode, txBytes []byte) (ctx sdk.C
 }
 
 // Iterates through msgs and executes them
-func (app *BaseApp) runMsgs(ctx sdk.Context, msgs []sdk.Msg, tx sdk.Tx) (result sdk.Result) {
-	var anteHandler sdk.AnteHandler
+func (app *BaseApp) runMsgs(ctx sdk.Context, msgs []sdk.Msg) (result sdk.Result) {
 	// accumulate results
 	logs := make([]string, 0, len(msgs))
 	var data []byte   // NOTE: we just append them all (?!)
 	var tags sdk.Tags // also just append them all
 	var code sdk.ABCICodeType
 	for msgIdx, msg := range msgs {
-		// run/get anteHandler
-		msgType := msg.Type()
-		if app.anteHandlers != nil {
-			if msgType == "contrib" {
-				anteHandler = app.anteHandlers[1]
-			} else {
-				anteHandler = app.anteHandlers[0]
-			}
-			newCtx, anteResult, abort := anteHandler(ctx, tx)
-			if abort {
-				return anteResult
-			}
-			if !newCtx.IsZero() {
-				ctx = newCtx
-			}
-		}
 		// Match route.
+		msgType := msg.Type()
 		handler := app.router.Route(msgType)
 		if handler == nil {
 			return sdk.ErrUnknownRequest("Unrecognized Msg type: " + msgType).Result()
@@ -601,25 +585,31 @@ func (app *BaseApp) runTx(mode runTxMode, txBytes []byte, tx sdk.Tx) (result sdk
 	if err != nil {
 		return err.Result()
 	}
-	gasWanted = result.GasWanted
 
-	// // Run the ante handler.
-	// if app.anteHandlers != nil {
-	// 	newCtx, anteResult, abort := app.anteHandler(ctx, tx)
-	// 	if abort {
-	// 		return anteResult
-	// 	}
-	// 	if !newCtx.IsZero() {
-	// 		ctx = newCtx
-	// 	}
-	// 	gasWanted = result.GasWanted
-	// }
+	var anteHandler sdk.AnteHandler
+	// Run the ante handler.
+	if app.anteHandlers != nil {
+		var msgType = msgs[0].Type()
+		if msgType == "contrib" {
+			anteHandler = app.anteHandlers[1]
+		} else {
+			anteHandler = app.anteHandlers[0]
+		}
+		newCtx, anteResult, abort := anteHandler(ctx, tx)
+		if abort {
+			return anteResult
+		}
+		if !newCtx.IsZero() {
+			ctx = newCtx
+		}
+		gasWanted = result.GasWanted
+	}
 
 	// CacheWrap the state in case it fails.
 	msCache := getState(app, mode).CacheMultiStore()
 	ctx = ctx.WithMultiStore(msCache)
 
-	result = app.runMsgs(ctx, msgs, tx)
+	result = app.runMsgs(ctx, msgs)
 	result.GasWanted = gasWanted
 
 	// Only update state if all messages pass and we're not in a simulation.
