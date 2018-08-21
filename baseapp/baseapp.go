@@ -412,11 +412,7 @@ func (app *BaseApp) CheckTx(txBytes []byte) (res abci.ResponseCheckTx) {
 		Log:       result.Log,
 		GasWanted: result.GasWanted,
 		GasUsed:   result.GasUsed,
-		Fee: cmn.KI64Pair{
-			[]byte(result.FeeDenom),
-			result.FeeAmount,
-		},
-		Tags: result.Tags,
+		Tags:      result.Tags,
 	}
 }
 
